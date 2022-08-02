@@ -22,6 +22,7 @@ from mypy_django_plugin.config import DjangoPluginConfig
 from mypy_django_plugin.django.context import DjangoContext
 from mypy_django_plugin.lib import fullnames, helpers
 from mypy_django_plugin.transformers import fields, forms, init_create, meta, querysets, request, settings
+from mypy_django_plugin.transformers.functional import get_lazy_return_type, resolve_promise_method
 from mypy_django_plugin.transformers.managers import (
     create_new_manager_class_from_from_queryset_method,
     resolve_manager_method,
@@ -172,6 +173,9 @@ class NewSemanalDjangoPlugin(Plugin):
         if fullname == "django.contrib.auth.get_user_model":
             return partial(settings.get_user_model_hook, django_context=self.django_context)
 
+        if fullname == "django.utils.functional.lazy":
+            return get_lazy_return_type
+
         manager_bases = self._get_current_manager_bases()
         if fullname in manager_bases:
             return querysets.determine_proper_manager_type
@@ -284,6 +288,10 @@ class NewSemanalDjangoPlugin(Plugin):
             and "from_queryset_manager" in helpers.get_django_metadata(info)
         ):
             return resolve_manager_method
+
+        # Lookup of a method of a Promise object from one of its result classes
+        if info and info.has_base(fullnames.PROMISE_FULLNAME):
+            return resolve_promise_method
 
         return None
 

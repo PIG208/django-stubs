@@ -16,3 +16,61 @@
       f = Foo()
       reveal_type(f.attr)        # N: Revealed type is "builtins.list[builtins.str]"
       f.attr.name                # E: "List[str]" has no attribute "name"
+
+-   case: lazy_return_type
+    main: |
+      from django.utils.functional import lazy, lazystr
+      from django.utils.safestring import SafeString
+
+      s = str
+
+      reveal_type(lazy(lambda b: "foo" if b else 0, s, int))   # N: Revealed type is "def (b: Any) -> django.utils.functional.Promise[Tuple[builtins.str, builtins.int]]"
+      reveal_type(lazy(lambda b: "foo" if b else 0, int, str)) # N: Revealed type is "def (b: Any) -> django.utils.functional.Promise[Tuple[builtins.int, builtins.str]]"
+      reveal_type(lazy(str, str))                              # N: Revealed type is "Overload(def (object: builtins.object =) -> django.utils.functional.Promise[Tuple[builtins.str]], def (object: Union[builtins.bytes, builtins.bytearray, builtins.memoryview, array.array[Any], mmap.mmap, ctypes._CData, pickle.PickleBuffer], encoding: builtins.str =, errors: builtins.str =) -> django.utils.functional.Promise[Tuple[builtins.str]])"
+      reveal_type(lazy(str, SafeString, str))                  # N: Revealed type is "Overload(def (object: builtins.object =) -> django.utils.functional.Promise[Tuple[django.utils.safestring.SafeString, builtins.str]], def (object: Union[builtins.bytes, builtins.bytearray, builtins.memoryview, array.array[Any], mmap.mmap, ctypes._CData, pickle.PickleBuffer], encoding: builtins.str =, errors: builtins.str =) -> django.utils.functional.Promise[Tuple[django.utils.safestring.SafeString, builtins.str]])"
+      reveal_type(lazystr("asd"))                              # N: Revealed type is "django.utils.functional.Promise[Tuple[builtins.str]]"
+
+-   case: lazy_proxied_callable_is_valid
+    main: |
+      from django.utils.functional import lazy
+
+      class Foo:
+        pass
+
+      class CallableBar:
+        def __call__(self) -> int:
+          return 1
+
+      lazy("asd", str)                       # E: Argument 1 to "lazy" has incompatible type "str"; expected "Callable[..., Any]"
+      lazy(123, int)                         # E: Argument 1 to "lazy" has incompatible type "int"; expected "Callable[..., Any]"
+      lazy(Foo(), Foo)                       # E: Argument 1 to "lazy" has incompatible type "Foo"; expected "Callable[..., Any]"
+      lazy(lambda: 1, int)
+      reveal_type(lazy(Foo, Foo))            # N: Revealed type is "def () -> django.utils.functional.Promise[Tuple[main.Foo]]"
+      reveal_type(lazy(CallableBar(), int))  # N: Revealed type is "def (*Any, **Any) -> django.utils.functional.Promise[Tuple[builtins.int]]"
+
+-   case: lazy_resultclass_is_valid
+    main: |
+      from django.utils.functional import lazy
+
+      invalid_lazy = lazy(lambda b: "foo" if b else 0, "asd", int)  # E: Argument 2 is invalid as a resultclass
+      reveal_type(invalid_lazy)                                     # N: Revealed type is "def (b: Any) -> django.utils.functional.Promise[Any]"
+
+-   case: user_defined_promise
+    main: |
+      from typing import Tuple, Union
+      from django.utils.functional import Promise, lazy
+
+      foo: Promise[Tuple[str]] = lazy(str, str)()
+      bar: Promise[Tuple[str]] = lazy(int, int)   # E: Incompatible types in assignment (expression has type "Type[Promise[Any]]", variable has type "Promise[Tuple[str]]")
+
+      def f() -> Union[str, int]:
+        ...
+
+      def g(obj: Promise[Tuple[str]]) -> None:
+        ...
+
+      baz = lazy(f, str, int)()
+
+
+      g(baz)  # E: Argument 1 to "g" has incompatible type "Promise[Tuple[str, int]]"; expected "Promise[Tuple[str]]"
+      g(foo)
