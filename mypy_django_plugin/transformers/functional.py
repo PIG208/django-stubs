@@ -39,7 +39,7 @@ def get_lazy_return_type(ctx: FunctionContext) -> MypyType:
     # Fall back to django.utils.functional.Promise[Any] when
     # resultclasses is invalid
     proxied_callable_ret_type = helpers.reparametrize_instance(
-        default_return_type.ret_type, [AnyType(TypeOfAny.from_error)]
+        default_return_type.ret_type, [AnyType(TypeOfAny.from_error), AnyType(TypeOfAny.from_error)]
     )
 
     # Get resultclasses from the variadic arguments provided by the caller.
@@ -48,7 +48,7 @@ def get_lazy_return_type(ctx: FunctionContext) -> MypyType:
         resultclasses: List[MypyType] = list(res)
         typechecker_api = helpers.get_typechecker_api(ctx)
         proxied_callable_ret_type = helpers.reparametrize_instance(
-            default_return_type.ret_type, [helpers.make_tuple(typechecker_api, resultclasses)]
+            default_return_type.ret_type, [helpers.make_tuple(typechecker_api, resultclasses), resultclasses[0]]
         )
 
     if isinstance(proxied_callable_type, CallableType):
