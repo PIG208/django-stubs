@@ -13,16 +13,22 @@ from mypy.plugin import (
     DynamicClassDefContext,
     FunctionContext,
     MethodContext,
+    MethodSigContext,
     Plugin,
 )
+from mypy.types import FunctionLike
 from mypy.types import Type as MypyType
 
 import mypy_django_plugin.transformers.orm_lookups
 from mypy_django_plugin.config import DjangoPluginConfig
 from mypy_django_plugin.django.context import DjangoContext
 from mypy_django_plugin.lib import fullnames, helpers
-from mypy_django_plugin.transformers import fields, forms, init_create, meta, querysets, request, settings
-from mypy_django_plugin.transformers.functional import get_lazy_return_type, resolve_promise_method
+from mypy_django_plugin.transformers import fields, forms, functional, init_create, meta, querysets, request, settings
+from mypy_django_plugin.transformers.functional import (
+    get_lazy_return_type,
+    resolve_promise_attribute,
+    transform_promise_method_signature,
+)
 from mypy_django_plugin.transformers.managers import (
     create_new_manager_class_from_from_queryset_method,
     resolve_manager_method,
@@ -242,6 +248,21 @@ class NewSemanalDjangoPlugin(Plugin):
 
         return None
 
+    def get_method_signature_hook(self, fullname: str) -> Optional[Callable[[MethodSigContext], FunctionLike]]:
+        class_fullname, _, method_name = fullname.rpartition(".")
+
+        info = self._get_typeinfo_or_none(class_fullname)
+
+        if (
+            info
+            and info.has_base(fullnames.PROMISE_FULLNAME)
+            and method_name in functional.SUPPORTED_OPERATOR_MAGIC_METHODS
+        ):
+            # print(f"method sig hook: {method_name}")
+            return partial(transform_promise_method_signature, method_name)
+
+        return None
+
     def get_base_class_hook(self, fullname: str) -> Optional[Callable[[ClassDefContext], None]]:
         # Base class is a Model class definition
         if (
@@ -291,7 +312,7 @@ class NewSemanalDjangoPlugin(Plugin):
 
         # Lookup of a method of a Promise object from one of its result classes
         if info and info.has_base(fullnames.PROMISE_FULLNAME):
-            return resolve_promise_method
+            return resolve_promise_attribute
 
         return None
 

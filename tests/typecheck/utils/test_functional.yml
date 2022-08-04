@@ -77,3 +77,37 @@
 
       g(baz)  # E: Argument 1 to "g" has incompatible type "Promise[Tuple[str, int], str]"; expected "Promise[Tuple[str], str]"
       g(foo)
+
+-   case: access_promise_attributes
+    main:  |
+      from typing import Any
+      from django.utils.functional import Promise, lazy, lazystr
+
+      obj = lazystr("lazy {val}")
+      reveal_type(obj.format("asd"))  # N: Revealed type is "builtins.str"
+      reveal_type(obj.__add__("b"))   # N: Revealed type is "builtins.str"
+      reveal_type(obj.__mod__)        # N: Revealed type is "def (Union[django.utils.functional.Promise[Tuple[builtins.str], builtins.str], builtins.str]) -> builtins.str"
+      reveal_type(obj.__lt__)         # N: Revealed type is "def (Union[django.utils.functional.Promise[Tuple[builtins.str], builtins.str], builtins.str]) -> builtins.bool"
+      reveal_type(obj + "bar")        # N: Revealed type is "builtins.str"
+      reveal_type(obj < "bar")        # N: Revealed type is "builtins.bool"
+      reveal_type(obj % "bar")        # N: Revealed type is "builtins.str"
+      obj.foo                         # E: 'django.utils.functional.Promise[Tuple[builtins.str], builtins.str]' object has no attribute 'foo'
+
+      lazyany_a: Promise[Any, Any] = lazy(str, str)()
+      lazyany_a.foo
+      lazyany_b: Promise = lazy(str, str)()
+      lazyany_b.foo
+
+-   case: access_promise_attributes_with_typevar
+    main:  |
+      from typing import Any, Tuple, TypeVar
+      from django.utils.functional import Promise, lazystr
+
+      T = TypeVar("T", bound=Tuple)
+
+      def foo(promise: Promise[T, Any]) -> Promise[T, Any]:
+        return promise
+
+      val = foo(lazystr("asd"))
+      reveal_type(val)         # N: Revealed type is "django.utils.functional.Promise[Tuple[builtins.str], Any]"
+      reveal_type(val.format)  # N: Revealed type is "def (self: builtins.str, *args: builtins.object, **kwargs: builtins.object) -> builtins.str"
