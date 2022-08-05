@@ -26,9 +26,10 @@ def resolve_str_promise_attribute(ctx: AttributeContext) -> MypyType:
         return AnyType(TypeOfAny.from_error)
 
     if isinstance(method.type, CallableType):
-        # The proxied str methods are only meant to be used as instance methods.
+        if method.type.arg_names[0] != "self":
+            return method.type
+        # The proxied str methods are meant to be used as instance methods.
         # We need to drop the first `self` argument in them.
-        assert method.type.arg_names[0] == "self"
         return method.type.copy_modified(
             arg_kinds=method.type.arg_kinds[1:],
             arg_names=method.type.arg_names[1:],
